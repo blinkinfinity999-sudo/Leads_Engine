@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadEngine Pro | Dashboard</title>
+    <meta name="description" content="Local Business Lead Scraper and Outreach Automation Dashboard">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        emerald: {
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                        },
+                        slate: {
+                            750: '#1e293b',
+                            800: '#1e293b',
+                            850: '#151f32',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #0f172a; 
+            color: #f8fafc; 
+            font-family: 'Inter', sans-serif; 
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass { 
+            background: rgba(30, 41, 59, 0.7); 
+            backdrop-filter: blur(12px); 
+            border-bottom: 1px solid rgba(255,255,255,0.05); 
+        }
+        .card-glass {
+            background: rgba(30, 41, 59, 0.5); 
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        /* Utility */
+        .hidden { display: none !important; }
+        
+        /* Toast animation */
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="glass sticky top-0 z-40 w-full">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 text-emerald-400">
+                <i class="fa-solid fa-bolt text-xl"></i>
+                <h1 class="text-xl font-bold tracking-tight text-white">LeadEngine <span class="text-emerald-400">Pro</span></h1>
+            </div>
+            
+            <div class="hidden md:flex items-center gap-6">
+                <div class="flex flex-col items-end">
+                    <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Total Leads</span>
+                    <span class="text-lg font-semibold text-white" id="stat-total">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div class="flex flex-col items-end">
+                    <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Missing Web</span>
+                    <span class="text-lg font-semibold text-amber-400" id="stat-missing-web">0</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div class="flex flex-col items-end">
+                    <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Outreach Ready</span>
+                    <span class="text-lg font-semibold text-emerald-400" id="stat-ready">0</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button onclick="exportToCSV()" class="text-slate-300 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg hover:bg-slate-800">
+                    <i class="fa-solid fa-download"></i> <span class="hidden sm:inline">Export</span>
+                </button>
+                <button onclick="openSettings()" class="text-slate-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-slate-800">
+                    <i class="fa-solid fa-gear text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-6 py-8">
+        
+        <!-- Demo Banner -->
+        <div id="demo-banner" class="hidden mb-6 bg-slate-800/80 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-circle-info text-amber-500"></i>
+                <p class="text-sm font-medium text-amber-100">Running in Demo Mode — Add your Google Places API Key in Settings for live leads.</p>
+            </div>
+            <button onclick="openSettings()" class="text-xs font-semibold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 px-3 py-1.5 rounded-lg transition-colors">
+                Open Settings
+            </button>
+        </div>
+
+        <!-- Search & Control Bar -->
+        <section class="mb-10">
+            <div class="bg-slate-800 rounded-2xl p-2 border border-slate-700 shadow-lg flex flex-col md:flex-row gap-2">
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <i class="fa-solid fa-briefcase"></i>
+                    </div>
+                    <input type="text" id="input-niche" placeholder="Target Niche (e.g. Plumbers, Dentists)" 
+                        class="w-full bg-slate-900/50 text-white rounded-xl pl-11 pr-4 py-3 border border-transparent focus:border-emerald-500 focus:bg-slate-900 focus:outline-none transition-all placeholder:text-slate-500">
+                </div>
+                
+                <div class="relative flex-1">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <input type="text" id="input-location" placeholder="Location (e.g. Miami, FL)" 
+                        class="w-full bg-slate-900/50 text-white rounded-xl pl-11 pr-4 py-3 border border-transparent focus:border-emerald-500 focus:bg-slate-900 focus:outline-none transition-all placeholder:text-slate-500">
+                </div>
+                
+                <button id="btn-search" onclick="handleSearch()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl px-8 py-3 transition-colors flex items-center justify-center gap-2 md:w-auto w-full">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Find Leads</span>
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+                <span class="text-sm font-medium text-slate-400 mr-2">Filters:</span>
+                
+                <button id="filter-web" onclick="toggleFilter('missingWebsite')" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors">
+                    Missing Website
+                </button>
+                <button id="filter-rating" onclick="toggleFilter('lowRating')" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors">
+                    Rating &lt; 4.0
+                </button>
+                <button id="filter-phone" onclick="toggleFilter('hasPhone')" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors">
+                    Has Phone
+                </button>
+                
+                <button onclick="clearFilters()" class="ml-auto text-sm text-emerald-400 hover:text-emerald-300 font-medium">Clear All</button>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="hidden flex flex-col items-center justify-center py-20">
+            <i class="fa-solid fa-circle-notch fa-spin text-4xl text-emerald-500 mb-4"></i>
+            <p class="text-slate-400 font-medium">Scraping local data... This may take a moment.</p>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="flex flex-col items-center justify-center py-20 text-center">
+            <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center text-slate-500 mb-6">
+                <i class="fa-solid fa-radar text-3xl"></i>
+            </div>
+            <h3 class="text-xl font-semibold text-white mb-2">No leads found</h3>
+            <p class="text-slate-400 max-w-md">Run a search above to discover high-value local business leads. Adjust your filters if you're not seeing results.</p>
+        </div>
+
+        <!-- Leads Grid -->
+        <div id="leads-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Populated via JS -->
+        </div>
+        
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-sliders text-emerald-500 mr-2"></i> API Settings</h2>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Data Source Mode</label>
+                    <div class="flex bg-slate-800 rounded-lg p-1">
+                        <button id="mode-mock" onclick="setMode('mock')" class="flex-1 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white shadow-sm transition-all">Mock / Demo Mode</button>
+                        <button id="mode-live" onclick="setMode('live')" class="flex-1 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all">Live API Mode</button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">Mock mode generates realistic local data instantly for testing.</p>
+                </div>
+                
+                <div id="api-key-container" class="opacity-50 pointer-events-none transition-opacity">
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Google Places API Key</label>
+                    <input type="password" id="input-api-key" placeholder="AIzaSy..." 
+                        class="w-full bg-slate-800 text-white rounded-lg px-4 py-2.5 border border-slate-700 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-slate-600">
+                </div>
+                
+                <div id="webhook-container" class="opacity-50 pointer-events-none transition-opacity">
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Custom Webhook URL (Optional)</label>
+                    <input type="text" id="input-webhook" placeholder="https://..." 
+                        class="w-full bg-slate-800 text-white rounded-lg px-4 py-2.5 border border-slate-700 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-slate-600">
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-800 bg-slate-850 flex justify-end gap-3">
+                <button onclick="closeSettings()" class="px-5 py-2 rounded-lg font-medium text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button onclick="saveSettings()" class="px-5 py-2 rounded-lg font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outreach Slide-over / Modal -->
+    <div id="outreach-modal" class="hidden fixed inset-0 z-[100] flex justify-end">
+        <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onclick="closeOutreach()"></div>
+        <div class="relative w-full max-w-lg bg-slate-900 border-l border-slate-700 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0">
+            
+            <div class="p-6 border-b border-slate-800 flex justify-between items-start bg-slate-850">
+                <div>
+                    <h2 class="text-xl font-bold text-white mb-1">Outreach Generator</h2>
+                    <p class="text-sm text-slate-400" id="outreach-business-name">Business Name</p>
+                </div>
+                <button onclick="closeOutreach()" class="text-slate-400 hover:text-white transition-colors bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-slate-300 mb-3">Select Strategy</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button onclick="selectTemplate('website')" id="btn-tpl-website" class="tpl-btn p-3 rounded-lg border border-slate-700 bg-slate-800 text-sm font-medium text-slate-300 hover:border-emerald-500 transition-colors text-left flex flex-col gap-1">
+                            <i class="fa-solid fa-globe text-emerald-500"></i>
+                            New Website
+                        </button>
+                        <button onclick="selectTemplate('reputation')" id="btn-tpl-reputation" class="tpl-btn p-3 rounded-lg border border-slate-700 bg-slate-800 text-sm font-medium text-slate-300 hover:border-emerald-500 transition-colors text-left flex flex-col gap-1">
+                            <i class="fa-solid fa-star text-amber-500"></i>
+                            Reputation
+                        </button>
+                        <button onclick="selectTemplate('seo')" id="btn-tpl-seo" class="tpl-btn p-3 rounded-lg border border-slate-700 bg-slate-800 text-sm font-medium text-slate-300 hover:border-emerald-500 transition-colors text-left flex flex-col gap-1">
+                            <i class="fa-solid fa-map-location-dot text-blue-500"></i>
+                            Local SEO
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Generated Pitch</label>
+                    <textarea id="outreach-pitch" rows="12" class="w-full bg-slate-800 text-slate-200 rounded-xl p-4 border border-slate-700 focus:border-emerald-500 focus:outline-none transition-all resize-none font-sans text-sm leading-relaxed"></textarea>
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-slate-800 bg-slate-850 flex flex-col gap-3">
+                <button onclick="copyPitch()" class="w-full py-3 rounded-xl font-medium border border-slate-600 hover:bg-slate-700 text-white transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-copy"></i> Copy to Clipboard
+                </button>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="sendEmail()" class="py-3 rounded-xl font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-envelope"></i> Email
+                    </button>
+                    <button onclick="sendWhatsApp()" class="py-3 rounded-xl font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-brands fa-whatsapp text-lg"></i> WhatsApp
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 hidden z-[200]">
+        <div class="bg-slate-800 border border-emerald-500/30 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up">
+            <i class="fa-solid fa-circle-check text-emerald-400 text-xl"></i>
+            <span id="toast-msg" class="font-medium text-sm">Action completed</span>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * State Management
+         */
+        let state = {
+            leads: [],
+            filters: {
+                missingWebsite: false,
+                lowRating: false,
+                hasPhone: false
+            },
+            settings: {
+                mode: 'mock',
+                apiKey: '',
+                webhookUrl: ''
+            },
+            currentLeadId: null,
+            currentTemplate: 'website'
+        };
+
+        const templates = {
+            website: "Hi {BusinessName} team,\n\nI noticed you're a highly rated {Category} in {City}, but you don't seem to have an active website. In today's market, this means missing out on hundreds of local searches every month.\n\nI specialize in building fast, high-converting sites specifically for local businesses. Are you open to a quick 5-minute chat this week to see what's possible?\n\nBest regards,\n[Your Name]",
+            
+            reputation: "Hello {BusinessName},\n\nI see you're serving the {City} area. I was looking for a {Category} and noticed your Google rating is currently at {Rating} stars. Many potential customers unfortunately filter out businesses below 4.0 stars.\n\nWe help local businesses automate 5-star reviews from happy clients to boost their map rankings instantly. Would you like to see how it works?\n\nBest regards,\n[Your Name]",
+            
+            seo: "Hi {BusinessName},\n\nAs a top {Category} in {City}, you should be dominating the Google Maps pack. I did a quick audit of your online presence and found a few easy local SEO wins you're currently missing.\n\nFixing these can significantly boost your inbound calls.\n\nCan I send over a free 2-minute video showing exactly how to fix this?\n\nBest regards,\n[Your Name]"
+        };
+
+        /**
+         * Initialization
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            updateDemoBanner();
+            renderLeads();
+            updateStats();
+            applySettingsUI();
+            
+            // Allow 'Enter' key to trigger search
+            document.getElementById('input-niche').addEventListener('keypress', (e) => e.key === 'Enter' && handleSearch());
+            document.getElementById('input-location').addEventListener('keypress', (e) => e.key === 'Enter' && handleSearch());
+        });
+
+        function loadState() {
+            const savedLeads = localStorage.getItem('leadengine_leads');
+            const savedSettings = localStorage.getItem('leadengine_settings');
+            
+            if (savedLeads) state.leads = JSON.parse(savedLeads);
+            if (savedSettings) state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
+        }
+
+        function saveState() {
+            localStorage.setItem('leadengine_leads', JSON.stringify(state.leads));
+            localStorage.setItem('leadengine_settings', JSON.stringify(state.settings));
+        }
+
+        function updateDemoBanner() {
+            const banner = document.getElementById('demo-banner');
+            if (state.settings.mode === 'mock' || !state.settings.apiKey) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Google Maps API Logic
+         */
+        function loadMapsScript(apiKey) {
+            return new Promise((resolve, reject) => {
+                if (window.google && window.google.maps && window.google.maps.places) {
+                    resolve();
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load Google Maps script. Check your API key.'));
+                document.head.appendChild(script);
+            });
+        }
+
+        function getPlaceDetails(service, placeId) {
+            return new Promise((resolve) => {
+                service.getDetails({
+                    placeId: placeId,
+                    fields: ['name', 'formatted_address', 'formatted_phone_number', 'website', 'rating', 'user_ratings_total']
+                }, (place, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        resolve(place);
+                    } else {
+                        resolve(null);
+                    }
+                });
+            });
+        }
+
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        async function performLiveSearch(niche, location) {
+            const query = `${niche} in ${location}`;
+            
+            const mapDiv = document.createElement('div');
+            const service = new google.maps.places.PlacesService(mapDiv);
+            
+            return new Promise((resolve, reject) => {
+                service.textSearch({ query: query }, async (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                        const leads = [];
+                        const topResults = results.slice(0, 10);
+                        
+                        for (let i = 0; i < topResults.length; i++) {
+                            const place = topResults[i];
+                            try {
+                                const details = await getPlaceDetails(service, place.place_id) || {};
+                                
+                                const rating = details.rating || place.rating || 0;
+                                const reviews = details.user_ratings_total || place.user_ratings_total || 0;
+                                const hasWebsite = !!details.website;
+                                const hasPhone = !!details.formatted_phone_number;
+                                
+                                let gap = 'None';
+                                if (!hasWebsite) gap = 'Needs Website';
+                                else if (rating > 0 && rating < 4.0) gap = 'Reputation Management';
+                                else gap = 'Local SEO Boost';
+                                
+                                if (!hasPhone) gap += ' & Missing Phone';
+                                
+                                leads.push({
+                                    id: place.place_id,
+                                    name: details.name || place.name,
+                                    category: niche,
+                                    phone: details.formatted_phone_number || '',
+                                    website: details.website ? details.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : null,
+                                    rating: rating,
+                                    reviews: reviews,
+                                    address: details.formatted_address || place.formatted_address,
+                                    gap: gap
+                                });
+                                
+                                await delay(200);
+                            } catch (e) {
+                                console.error('Error fetching details for', place.place_id, e);
+                            }
+                        }
+                        resolve(leads);
+                    } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                        resolve([]);
+                    } else {
+                        reject(new Error(`Places search failed with status: ${status}`));
+                    }
+                });
+            });
+        }
+
+        /**
+         * Search & Data Engine
+         */
+        async function handleSearch() {
+            const niche = document.getElementById('input-niche').value.trim() || 'Businesses';
+            const location = document.getElementById('input-location').value.trim() || 'Local Area';
+            
+            const btn = document.getElementById('btn-search');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching...';
+            btn.disabled = true;
+            
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('leads-grid').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+
+            try {
+                if (state.settings.mode === 'live' && state.settings.apiKey) {
+                    try {
+                        await loadMapsScript(state.settings.apiKey);
+                        state.leads = await performLiveSearch(niche, location);
+                        showToast('Live Search completed successfully');
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Live Search failed. Check API Key.', 'error');
+                        state.leads = generateMockLeads(niche, location);
+                    }
+                } else {
+                    if (state.settings.mode === 'live' && !state.settings.apiKey) {
+                        showToast('API Key missing. Falling back to Demo Mode.', 'alert');
+                    }
+                    await new Promise(r => setTimeout(r, 1200));
+                    state.leads = generateMockLeads(niche, location);
+                }
+                
+                saveState();
+                renderLeads();
+                
+            } catch (err) {
+                console.error(err);
+                showToast('Error fetching leads', 'error');
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> <span>Find Leads</span>';
+                btn.disabled = false;
+            }
+        }
+
+        function generateMockLeads(niche, location) {
+            const numLeads = Math.floor(Math.random() * 6) + 7; // 7 to 12 leads
+            const leads = [];
+            
+            const prefixes = ['Elite', 'Premier', 'Local', 'Advanced', 'Apex', 'Express', 'City', 'Pro', 'Reliable', 'Top'];
+            const suffixes = ['Services', 'Solutions', 'Co.', 'Group', 'Inc', 'LLC', 'Pros', 'Specialists'];
+            const firstNames = ['John', 'Mike', 'Sarah', 'Dave', 'Lisa', 'Joe', 'Tom', 'Emma'];
+            
+            for(let i=0; i<numLeads; i++) {
+                const isPersonal = Math.random() > 0.7;
+                const name = isPersonal 
+                    ? `${firstNames[Math.floor(Math.random()*firstNames.length)]}'s ${niche}` 
+                    : `${prefixes[Math.floor(Math.random()*prefixes.length)]} ${niche} ${suffixes[Math.floor(Math.random()*suffixes.length)]}`;
+                
+                const hasWebsite = Math.random() > 0.35;
+                const websiteUrl = hasWebsite ? `www.${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com` : null;
+                
+                const hasPhone = Math.random() > 0.1;
+                const phone = hasPhone ? `(${Math.floor(Math.random()*900)+100}) ${Math.floor(Math.random()*900)+100}-${Math.floor(Math.random()*9000)+1000}` : null;
+                
+                const rating = (Math.random() * 2.5 + 2.5).toFixed(1); // 2.5 to 5.0
+                const reviews = Math.floor(Math.random() * 250);
+                
+                let gap = 'None';
+                if (!hasWebsite) gap = 'Needs Website';
+                else if (rating < 4.0) gap = 'Reputation Management';
+                else gap = 'Local SEO Boost';
+
+                if(!hasPhone) gap += ' & Missing Phone';
+
+                leads.push({
+                    id: Date.now() + i,
+                    name,
+                    category: niche,
+                    phone,
+                    website: websiteUrl,
+                    rating: parseFloat(rating),
+                    reviews,
+                    address: `${Math.floor(Math.random()*9999) + 100} Main St, ${location}`,
+                    gap
+                });
+            }
+            return leads;
+        }
+
+        /**
+         * Rendering & Filtering
+         */
+        function toggleFilter(filterKey) {
+            state.filters[filterKey] = !state.filters[filterKey];
+            renderLeads();
+        }
+
+        function clearFilters() {
+            state.filters = { missingWebsite: false, lowRating: false, hasPhone: false };
+            renderLeads();
+        }
+
+        function getFilteredLeads() {
+            return state.leads.filter(lead => {
+                if (state.filters.missingWebsite && lead.website) return false;
+                if (state.filters.lowRating && lead.rating >= 4.0) return false;
+                if (state.filters.hasPhone && !lead.phone) return false;
+                return true;
+            });
+        }
+
+        function updateStats() {
+            const filtered = getFilteredLeads();
+            document.getElementById('stat-total').innerText = filtered.length;
+            document.getElementById('stat-missing-web').innerText = filtered.filter(l => !l.website).length;
+            document.getElementById('stat-ready').innerText = filtered.filter(l => l.phone && l.gap !== 'None').length;
+        }
+
+        function renderLeads() {
+            const grid = document.getElementById('leads-grid');
+            const loading = document.getElementById('loading-state');
+            const empty = document.getElementById('empty-state');
+            
+            loading.classList.add('hidden');
+            
+            const filtered = getFilteredLeads();
+            updateStats();
+
+            // Update filter button visuals
+            document.getElementById('filter-web').className = state.filters.missingWebsite 
+                ? 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-emerald-500 bg-emerald-500/10 text-emerald-400 transition-colors'
+                : 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors';
+                
+            document.getElementById('filter-rating').className = state.filters.lowRating 
+                ? 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-amber-500 bg-amber-500/10 text-amber-400 transition-colors'
+                : 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors';
+                
+            document.getElementById('filter-phone').className = state.filters.hasPhone 
+                ? 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-blue-500 bg-blue-500/10 text-blue-400 transition-colors'
+                : 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500 transition-colors';
+
+            if (filtered.length === 0) {
+                grid.classList.add('hidden');
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            grid.classList.remove('hidden');
+            
+            grid.innerHTML = filtered.map(lead => {
+                const websiteBadge = lead.website 
+                    ? `<a href="http://${lead.website}" target="_blank" class="text-sm text-slate-400 hover:text-blue-400 truncate w-48"><i class="fa-solid fa-link text-xs mr-1"></i> ${lead.website}</a>`
+                    : `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-triangle-exclamation"></i> NO WEBSITE FOUND</span>`;
+                
+                const ratingColor = lead.rating >= 4.5 ? 'text-emerald-400' : lead.rating >= 4.0 ? 'text-blue-400' : 'text-amber-400';
+                const lowRatingTag = lead.rating > 0 && lead.rating < 4.0 
+                    ? `<span class="mt-1 text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">LOW RATING</span>` 
+                    : '';
+                
+                const gapBadgeColor = lead.gap.includes('Website') ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                                      lead.gap.includes('Reputation') ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
+                                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+
+                return `
+                <div class="card-glass rounded-2xl p-6 hover:border-slate-600 transition-colors flex flex-col h-full">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="font-bold text-lg text-white leading-tight mb-1">${lead.name}</h3>
+                            <span class="text-xs font-medium px-2 py-0.5 bg-slate-800 text-slate-400 rounded-md border border-slate-700 uppercase tracking-wider">${lead.category}</span>
+                        </div>
+                        <div class="flex flex-col items-end bg-slate-900/50 px-2 py-1.5 rounded-lg border border-slate-700/50">
+                            <span class="text-lg font-bold ${ratingColor} flex items-center gap-1">
+                                ${lead.rating.toFixed(1)} <i class="fa-solid fa-star text-xs"></i>
+                            </span>
+                            <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">${lead.reviews} rev</span>
+                            ${lowRatingTag}
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3 mb-6 flex-1">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                                <i class="fa-solid fa-phone"></i>
+                            </div>
+                            <span class="text-sm ${lead.phone ? 'text-slate-300' : 'text-slate-500 italic'}">${lead.phone || 'No phone found'}</span>
+                        </div>
+                        
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                                <i class="fa-solid fa-globe"></i>
+                            </div>
+                            ${websiteBadge}
+                        </div>
+                        
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </div>
+                            <span class="text-sm text-slate-400 leading-tight pt-1.5">${lead.address}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-3 rounded-lg bg-slate-900 border border-slate-700 mb-5">
+                        <span class="text-xs text-slate-500 block mb-1 uppercase font-semibold">Identified Gap</span>
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold border ${gapBadgeColor}">${lead.gap}</span>
+                    </div>
+                    
+                    <button onclick="openOutreach(${lead.id})" class="w-full bg-slate-800 hover:bg-emerald-600 hover:border-emerald-500 text-white border border-slate-700 font-medium py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 group mt-auto">
+                        <i class="fa-solid fa-paper-plane text-slate-400 group-hover:text-white transition-colors"></i> 1-Click Outreach
+                    </button>
+                </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Outreach Generator
+         */
+        function openOutreach(id) {
+            const lead = state.leads.find(l => l.id === id);
+            if(!lead) return;
+            
+            state.currentLeadId = id;
+            document.getElementById('outreach-business-name').innerText = lead.name;
+            
+            // Auto-select template based on gap
+            if (!lead.website) selectTemplate('website');
+            else if (lead.rating < 4.0) selectTemplate('reputation');
+            else selectTemplate('seo');
+            
+            document.getElementById('outreach-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeOutreach() {
+            document.getElementById('outreach-modal').classList.add('hidden');
+            document.body.style.overflow = '';
+            state.currentLeadId = null;
+        }
+
+        function selectTemplate(type) {
+            state.currentTemplate = type;
+            
+            // Update UI buttons
+            ['website', 'reputation', 'seo'].forEach(t => {
+                const btn = document.getElementById(`btn-tpl-${t}`);
+                if(t === type) {
+                    btn.classList.add('border-emerald-500', 'bg-emerald-500/10');
+                    btn.classList.remove('border-slate-700', 'bg-slate-800');
+                } else {
+                    btn.classList.remove('border-emerald-500', 'bg-emerald-500/10');
+                    btn.classList.add('border-slate-700', 'bg-slate-800');
+                }
+            });
+            
+            generatePitchText();
+        }
+
+        function generatePitchText() {
+            const lead = state.leads.find(l => l.id === state.currentLeadId);
+            if(!lead) return;
+            
+            const city = lead.address.split(',')[1]?.trim() || lead.address;
+            
+            let pitch = templates[state.currentTemplate];
+            pitch = pitch
+                .replace(/{BusinessName}/g, lead.name)
+                .replace(/{Category}/g, lead.category.toLowerCase())
+                .replace(/{City}/g, city)
+                .replace(/{Rating}/g, lead.rating.toFixed(1));
+                
+            document.getElementById('outreach-pitch').value = pitch;
+        }
+
+        function copyPitch() {
+            const text = document.getElementById('outreach-pitch').value;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Pitch copied to clipboard!');
+            });
+        }
+
+        function sendEmail() {
+            const lead = state.leads.find(l => l.id === state.currentLeadId);
+            const text = document.getElementById('outreach-pitch').value;
+            const subject = encodeURIComponent(`Quick question regarding ${lead.name}`);
+            const body = encodeURIComponent(text);
+            window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+        }
+
+        function sendWhatsApp() {
+            const lead = state.leads.find(l => l.id === state.currentLeadId);
+            if(!lead.phone) {
+                alert("No phone number found for this lead.");
+                return;
+            }
+            const phoneClean = lead.phone.replace(/[^0-9]/g, '');
+            const text = encodeURIComponent(document.getElementById('outreach-pitch').value);
+            window.open(`https://wa.me/1${phoneClean}?text=${text}`, '_blank');
+        }
+
+        /**
+         * CSV Export
+         */
+        function exportToCSV() {
+            const filtered = getFilteredLeads();
+            if(filtered.length === 0) {
+                showToast('No leads to export', 'error');
+                return;
+            }
+            
+            const headers = ['Business Name', 'Category', 'Phone', 'Website', 'Rating', 'Reviews', 'Address', 'Gap'];
+            const rows = filtered.map(l => [
+                `"${l.name.replace(/"/g, '""')}"`,
+                `"${l.category}"`,
+                `"${l.phone || ''}"`,
+                `"${l.website || 'No Website'}"`,
+                l.rating,
+                l.reviews,
+                `"${l.address.replace(/"/g, '""')}"`,
+                `"${l.gap}"`
+            ]);
+            
+            const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `leads_export_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast(`Exported ${filtered.length} leads to CSV`);
+        }
+
+        /**
+         * Settings Modal
+         */
+        function openSettings() {
+            applySettingsUI();
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function setMode(mode) {
+            state.settings.mode = mode;
+            applySettingsUI();
+        }
+
+        function applySettingsUI() {
+            const isLive = state.settings.mode === 'live';
+            
+            const mockBtn = document.getElementById('mode-mock');
+            const liveBtn = document.getElementById('mode-live');
+            
+            if(isLive) {
+                liveBtn.className = 'flex-1 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white shadow-sm transition-all';
+                mockBtn.className = 'flex-1 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all';
+                
+                document.getElementById('api-key-container').classList.remove('opacity-50', 'pointer-events-none');
+                document.getElementById('webhook-container').classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                mockBtn.className = 'flex-1 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white shadow-sm transition-all';
+                liveBtn.className = 'flex-1 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all';
+                
+                document.getElementById('api-key-container').classList.add('opacity-50', 'pointer-events-none');
+                document.getElementById('webhook-container').classList.add('opacity-50', 'pointer-events-none');
+            }
+            
+            document.getElementById('input-api-key').value = state.settings.apiKey || '';
+            document.getElementById('input-webhook').value = state.settings.webhookUrl || '';
+        }
+
+        function saveSettings() {
+            state.settings.apiKey = document.getElementById('input-api-key').value.trim();
+            state.settings.webhookUrl = document.getElementById('input-webhook').value.trim();
+            saveState();
+            updateDemoBanner();
+            closeSettings();
+            showToast('Settings saved successfully');
+        }
+
+        /**
+         * Utilities
+         */
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-msg');
+            const icon = toast.querySelector('i');
+            
+            msgEl.innerText = message;
+            
+            if(type === 'error') {
+                icon.className = 'fa-solid fa-circle-exclamation text-red-400 text-xl';
+                toast.firstElementChild.classList.replace('border-emerald-500/30', 'border-red-500/30');
+            } else if(type === 'alert') {
+                icon.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-xl';
+                toast.firstElementChild.classList.replace('border-emerald-500/30', 'border-amber-500/30');
+                toast.firstElementChild.classList.replace('border-red-500/30', 'border-amber-500/30');
+            } else {
+                icon.className = 'fa-solid fa-circle-check text-emerald-400 text-xl';
+                toast.firstElementChild.classList.replace('border-red-500/30', 'border-emerald-500/30');
+                toast.firstElementChild.classList.replace('border-amber-500/30', 'border-emerald-500/30');
+            }
+            
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

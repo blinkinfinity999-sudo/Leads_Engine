@@ -1,0 +1,6 @@
+{
+  "name": "LeadEngine Pro",
+  "description": "Local Business Lead Scraper and Outreach Automation Dashboard",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
