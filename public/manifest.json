@@ -1,0 +1,17 @@
+{
+  "name": "LeadEngine Pro",
+  "short_name": "LeadEngine",
+  "description": "Local Business Lead Scraper and Outreach Automation Dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/Gemini_Generated_Image_6geh2y6geh2y6geh.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
