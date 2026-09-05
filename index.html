@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LeadEngine Pro | Live Local Scraper</title>
-    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="icon" type="image/png" href="/Gemini_Generated_Image_6geh2y6geh2y6geh.png">
     <meta name="description" content="Local Business Lead Scraper and Outreach Automation Dashboard">
     <meta name="theme-color" content="#0f172a">
     
@@ -122,6 +122,8 @@
             <p class="text-slate-400 max-w-md" id="empty-desc">Enter your target niche and location above to extract real, high-value leads instantly from the OpenStreetMap network.</p>
         </div>
 
+        
+        <div id="search-status-container" class="hidden mb-6 flex justify-center"></div>
         <div id="leads-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </main>
 
@@ -136,7 +138,7 @@
             </div>
             
             <div class="p-6 overflow-y-auto">
-                <form id="bug-form" onsubmit="submitBugReport(event)">
+                <form id="bug-form" onsubmit="event.preventDefault(); submitBugReport(event);">
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-slate-400 mb-2">Your Email</label>
                         <input type="email" id="bug-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
@@ -195,6 +197,9 @@
                 </div>
                 
                 <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-8">
+                    <div class="flex justify-center mb-4 bg-white p-2 rounded-lg w-max mx-auto shadow-sm">
+                        <img id="crypto-qr-code" src="https://quickchart.io/qr?text=18GQeD9x5q7MwjjJ9SiwRH3v9ezQwdE1kB&size=150" alt="Crypto QR Code" class="w-32 h-32 object-contain rounded">
+                    </div>
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-xs font-bold text-slate-400 uppercase" id="crypto-label">Send Exactly $80 in BTC to:</span>
                     </div>
@@ -340,66 +345,119 @@
         }
 
         async function handleSearch() {
-            const niche = document.getElementById('input-niche').value.trim();
-            const location = document.getElementById('input-location').value.trim();
+    const niche = document.getElementById('input-niche').value.trim();
+    const location = document.getElementById('input-location').value.trim();
+    
+    if(!niche || !location) {
+        showToast('Please enter both a niche and a location.', 'alert');
+        return;
+    }
+
+    const btn = document.getElementById('btn-search');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching...';
+    btn.disabled = true;
+    
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('leads-grid').classList.add('hidden');
+    document.getElementById('loading-state').classList.remove('hidden');
+    document.getElementById('loading-state').classList.add('grid');
+
+    let uniqueLeads = [];
+    let isMockData = false;
+
+    try {
+        const city = location.split(',')[0].trim();
+        const query = niche;
+
+        // 1. PRIMARY ENGINE: DUCKDUCKGO
+        try {
+            const ddgController = new AbortController();
+            const ddgTimeout = setTimeout(() => ddgController.abort(), 8000);
+            const ddgUrl = 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query + ' in ' + city);
             
-            if(!niche || !location) {
-                showToast('Please enter both a niche and a location.', 'alert');
-                return;
+            const ddgRes = await fetch(ddgUrl, { signal: ddgController.signal });
+            clearTimeout(ddgTimeout);
+            
+            if (ddgRes.ok) {
+                const htmlText = await ddgRes.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const results = doc.querySelectorAll('.result');
+                
+                results.forEach(res => {
+                    const titleEl = res.querySelector('.result__title .result__a');
+                    const snippetEl = res.querySelector('.result__snippet');
+                    const urlEl = res.querySelector('.result__url');
+                    
+                    if (titleEl) {
+                        const name = titleEl.textContent.trim();
+                        const website = urlEl ? urlEl.textContent.trim() : '';
+                        const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                        
+                        // Naive phone extraction
+                        const phoneMatch = snippet.match(/(\+?\d{1,2}\s?)?(\(?\d{3}\)?[s.-]?)?\d{3}[\s.-]?\d{4}/);
+                        const phone = phoneMatch ? phoneMatch[0] : '';
+                        
+                        let gap = 'VERIFIED LEAD';
+                        let gapType = 'verified';
+                        if (!website) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                        else if (!phone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
+
+                        uniqueLeads.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            name: name,
+                            category: query,
+                            phone: phone,
+                            website: website.startsWith('http') ? website : (website ? 'https://' + website : ''),
+                            address: city + ' (Address in search result)',
+                            gap: gap,
+                            gapType: gapType,
+                            city: city
+                        });
+                    }
+                });
+            }
+        } catch (ddgError) {
+            console.warn("Primary engine (DuckDuckGo) failed or blocked:", ddgError);
+        }
+
+        // 2. FALLBACK ENGINE: OVERPASS API
+        if (uniqueLeads.length === 0) {
+            console.log("Primary engine returned 0 results. Falling back to Overpass...");
+            const overpassQuery = `[out:json][timeout:10]; area["name"~"${city}", i]->.a; (node["amenity"~"${query}", i](area.a); node["shop"~"${query}", i](area.a); node["craft"~"${query}", i](area.a); node["office"~"${query}", i](area.a);); out center 20;`;
+            
+            const overpassEndpoints = [
+                'https://overpass-api.de/api/interpreter',
+                'https://overpass.kumi.systems/api/interpreter',
+                'https://api.openstreetmap.fr/oapi/interpreter'
+            ];
+            
+            const params = new URLSearchParams({ data: overpassQuery });
+            let data = null;
+
+            for (const endpoint of overpassEndpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                        body: params,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    data = await res.json();
+                    break; 
+                } catch (e) {
+                    console.warn(`Overpass endpoint failed (${endpoint}):`, e);
+                }
             }
 
-            const btn = document.getElementById('btn-search');
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching...';
-            btn.disabled = true;
-            
-            document.getElementById('empty-state').classList.add('hidden');
-            document.getElementById('leads-grid').classList.add('hidden');
-            document.getElementById('loading-state').classList.remove('hidden');
-            document.getElementById('loading-state').classList.add('grid');
-
-            try {
-                const city = location.split(',')[0].trim();
-                const overpassQuery = `[out:json][timeout:25];
-                    area["name"~"^${city}$",i]->.searchArea;
-                    (
-                      node["name"~"${niche}",i](area.searchArea);
-                      way["name"~"${niche}",i](area.searchArea);
-                      node["shop"~"${niche}",i](area.searchArea);
-                      node["craft"~"${niche}",i](area.searchArea);
-                      node["amenity"~"${niche}",i](area.searchArea);
-                      node["office"~"${niche}",i](area.searchArea);
-                    );
-                    out center limit 80;`;
-
-                const overpassEndpoints = [
-                    'https://overpass-api.de/api/interpreter',
-                    'https://overpass.kumi.systems/api/interpreter',
-                    'https://api.openstreetmap.fr/oapi/interpreter'
-                ];
-                
-                let data = null;
-                let lastError = null;
-                
-                const params = new URLSearchParams({ data: overpassQuery });
-
-                for (const endpoint of overpassEndpoints) {
-                    try {
-                        const res = await fetch(endpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                            body: params
-                        });
-                        if (!res.ok) throw new Error(`HTTP ${res.status}${bugJS}`);
-                        data = await res.json();
-                        break; // Success, exit fallback loop
-                    } catch (e) {
-                        lastError = e;
-                        console.warn(`Overpass endpoint failed (${endpoint}):`, e);
-                    }
-                }
-                
-                if (!data) throw new Error(lastError ? lastError.message : 'All Overpass endpoints failed');
-                
+            if (data && data.elements) {
                 let parsedLeads = data.elements.map(el => {
                     const tags = el.tags || {};
                     if (!tags.name) return null;
@@ -413,13 +471,8 @@
                     let gap = 'VERIFIED LEAD';
                     let gapType = 'verified';
                     
-                    if (!website) {
-                        gap = '🔴 NO WEBSITE FOUND';
-                        gapType = 'website';
-                    } else if (!phone) {
-                        gap = '🟡 NO PHONE';
-                        gapType = 'phone';
-                    }
+                    if (!website) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                    else if (!phone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
                     
                     return {
                         id: el.id.toString(),
@@ -434,39 +487,80 @@
                     };
                 }).filter(Boolean);
 
-                // Deduplicate by name
-                const uniqueLeads = [];
-                const seen = new Set();
                 for (const l of parsedLeads) {
-                    const key = l.name.toLowerCase();
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        uniqueLeads.push(l);
-                    }
+                    uniqueLeads.push(l);
                 }
-
-                state.leads = uniqueLeads;
-                saveState();
-                renderLeads();
-                
-                if (uniqueLeads.length > 0) {
-                    showToast(`Extracted ${uniqueLeads.length} live leads successfully.`);
-                } else {
-                    showToast('No leads found for this query. Try a broader search.', 'alert');
-                    document.getElementById('empty-state').classList.remove('hidden');
-                }
-                
-            } catch (err) {
-                console.error(err);
-                showToast('Failed to fetch from Overpass API. ' + err.message, 'error');
-                document.getElementById('empty-state').classList.remove('hidden');
-            } finally {
-                document.getElementById('loading-state').classList.add('hidden');
-                document.getElementById('loading-state').classList.remove('grid');
-                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> <span>Search Live Data</span>';
-                btn.disabled = false;
             }
         }
+        
+        // Deduplicate
+        const seen = new Set();
+        const dedupedLeads = [];
+        for (const l of uniqueLeads) {
+            const key = l.name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                dedupedLeads.push(l);
+            }
+        }
+        uniqueLeads = dedupedLeads;
+
+        // 3. MOCK / DEMO DATA FALLBACK (SAFEGUARD)
+        if (uniqueLeads.length === 0) {
+            console.log("External networks failed. Generating mock safeguard data...");
+            isMockData = true;
+            const companySuffixes = ['Solutions', 'Services', 'Partners', 'Co', 'Group', 'Pros', 'Experts', 'Inc'];
+            for (let i = 1; i <= 8; i++) {
+                const hasWebsite = Math.random() > 0.3;
+                const hasPhone = Math.random() > 0.2;
+                let gap = 'VERIFIED LEAD';
+                let gapType = 'verified';
+                
+                if (!hasWebsite) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                else if (!hasPhone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
+
+                uniqueLeads.push({
+                    id: 'mock-' + i,
+                    name: `${city} ${query.charAt(0).toUpperCase() + query.slice(1)} ${companySuffixes[Math.floor(Math.random() * companySuffixes.length)]}`,
+                    category: query,
+                    phone: hasPhone ? `(555) ${Math.floor(100 + Math.random() * 900)}-${Math.floor(1000 + Math.random() * 9000)}` : '',
+                    website: hasWebsite ? `https://www.mock${query.replace(/\s+/g,'').toLowerCase()}${i}.com` : '',
+                    address: `${Math.floor(100 + Math.random() * 9000)} Main St, ${city}`,
+                    gap: gap,
+                    gapType: gapType,
+                    city: city
+                });
+            }
+        }
+
+        
+        const statusContainer = document.getElementById('search-status-container');
+        if (statusContainer) {
+            if (isMockData) {
+                statusContainer.innerHTML = `<div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 group relative cursor-help"><span>🟡 Demo Mode (Public API Busy - Showing Sample Leads)</span><div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 bg-slate-800 text-slate-300 text-xs p-3 rounded-xl border border-slate-700 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">Connect your own Google Places API key in settings.js for unlimited live data.</div></div>`;
+            } else {
+                statusContainer.innerHTML = `<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2"><span>🟢 Live OpenStreetMap Data</span></div>`;
+            }
+            statusContainer.classList.remove('hidden');
+        }
+
+        state.leads = uniqueLeads;
+        saveState();
+        renderLeads();
+        
+        showToast(`Extracted ${uniqueLeads.length} leads successfully.`);
+
+    } catch (err) {
+        console.error("Critical Search Error:", err);
+        showToast('Search encountered an error.', 'error');
+        document.getElementById('empty-state').classList.remove('hidden');
+    } finally {
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('loading-state').classList.remove('grid');
+        btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> <span>Search Live Data</span>';
+        btn.disabled = false;
+    }
+}
 
         function toggleFilter(filterKey) {
             state.filters[filterKey] = !state.filters[filterKey];
@@ -688,6 +782,7 @@
             
             document.getElementById('active-crypto-addr').value = addr;
             document.getElementById('crypto-label').innerText = `Send Exactly $80 in ${select.value.split('_')[0]} to:`;
+            document.getElementById('crypto-qr-code').src = `https://quickchart.io/qr?text=${encodeURIComponent(addr)}&size=150`;
         }
 
         function copyCrypto(id) {
@@ -784,7 +879,7 @@
                 const zip = new JSZip();
                 
                 // 1. index.html
-                const bugModalHTML = `\n    <!-- Bug Report Modal -->\n    <div id="bug-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">\n        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">\n            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-850 shrink-0">\n                <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-bug text-rose-500 mr-2"></i> Report a Bug</h2>\n                <button onclick="closeBugModal()" class="text-slate-400 hover:text-white transition-colors">\n                    <i class="fa-solid fa-xmark text-xl"></i>\n                </button>\n            </div>\n            <div class="p-6 overflow-y-auto">\n                <form id="bug-form" onsubmit="submitBugReport(event)">\n                    <div class="mb-4">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Your Email</label>\n                        <input type="email" id="bug-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">\n                    </div>\n                    <div class="mb-4">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Category</label>\n                        <select id="bug-category" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 appearance-none">\n                            <option value="Search / Scraping">Search / Scraping</option>\n                            <option value="UI / Design">UI / Design</option>\n                            <option value="Source Code Download">Source Code Download</option>\n                            <option value="Other">Other</option>\n                        </select>\n                    </div>\n                    <div class="mb-6">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Bug Description</label>\n                        <textarea id="bug-message" required rows="4" placeholder="Please describe what happened..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"></textarea>\n                    </div>\n                    <div class="flex gap-4">\n                        <button type="button" onclick="closeBugModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">Cancel</button>\n                        <button type="submit" id="bug-submit-btn" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2">\n                            <span>Submit Report</span>\n                        </button>\n                    </div>\n                </form>\n            </div>\n        </div>\n    </div>`;
+                const bugModalHTML = `\n    <!-- Bug Report Modal -->\n    <div id="bug-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">\n        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">\n            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-850 shrink-0">\n                <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-bug text-rose-500 mr-2"></i> Report a Bug</h2>\n                <button onclick="closeBugModal()" class="text-slate-400 hover:text-white transition-colors">\n                    <i class="fa-solid fa-xmark text-xl"></i>\n                </button>\n            </div>\n            <div class="p-6 overflow-y-auto">\n                <form id="bug-form" onsubmit="event.preventDefault(); submitBugReport(event);">\n                    <div class="mb-4">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Your Email</label>\n                        <input type="email" id="bug-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">\n                    </div>\n                    <div class="mb-4">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Category</label>\n                        <select id="bug-category" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 appearance-none">\n                            <option value="Search / Scraping">Search / Scraping</option>\n                            <option value="UI / Design">UI / Design</option>\n                            <option value="Source Code Download">Source Code Download</option>\n                            <option value="Other">Other</option>\n                        </select>\n                    </div>\n                    <div class="mb-6">\n                        <label class="block text-sm font-medium text-slate-400 mb-2">Bug Description</label>\n                        <textarea id="bug-message" required rows="4" placeholder="Please describe what happened..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"></textarea>\n                    </div>\n                    <div class="flex gap-4">\n                        <button type="button" onclick="closeBugModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 rounded-xl transition-colors">Cancel</button>\n                        <button type="submit" id="bug-submit-btn" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2">\n                            <span>Submit Report</span>\n                        </button>\n                    </div>\n                </form>\n            </div>\n        </div>\n    </div>`;
 
                 const indexHtml = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -792,7 +887,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LeadEngine Pro | Live Local Scraper</title>
-    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="icon" type="image/png" href="Gemini_Generated_Image_6geh2y6geh2y6geh.png">
     <link rel="stylesheet" href="assets/css/style.css">
     <script src="https://cdn.tailwindcss.com"><\/script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -901,107 +996,197 @@ async function handleSearch() {
     document.getElementById('loading-state').classList.remove('hidden');
     document.getElementById('loading-state').classList.add('grid');
 
+    let uniqueLeads = [];
+    let isMockData = false;
+
     try {
         const city = location.split(',')[0].trim();
-        const overpassQuery = \`[out:json][timeout:25];
-            area["name"~"^\${city}$",i]->.searchArea;
-            (
-              node["name"~"\${niche}",i](area.searchArea);
-              way["name"~"\${niche}",i](area.searchArea);
-              node["shop"~"\${niche}",i](area.searchArea);
-              node["craft"~"\${niche}",i](area.searchArea);
-              node["amenity"~"\${niche}",i](area.searchArea);
-              node["office"~"\${niche}",i](area.searchArea);
-            );
-            out center limit 80;\`;
+        const query = niche;
 
-        const overpassEndpoints = [
-            'https://overpass-api.de/api/interpreter',
-            'https://overpass.kumi.systems/api/interpreter',
-            'https://api.openstreetmap.fr/oapi/interpreter'
-        ];
-        
-        let data = null;
-        let lastError = null;
-        
-        const params = new URLSearchParams({ data: overpassQuery });
+        // 1. PRIMARY ENGINE: DUCKDUCKGO
+        try {
+            const ddgController = new AbortController();
+            const ddgTimeout = setTimeout(() => ddgController.abort(), 8000);
+            const ddgUrl = 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query + ' in ' + city);
+            
+            const ddgRes = await fetch(ddgUrl, { signal: ddgController.signal });
+            clearTimeout(ddgTimeout);
+            
+            if (ddgRes.ok) {
+                const htmlText = await ddgRes.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const results = doc.querySelectorAll('.result');
+                
+                results.forEach(res => {
+                    const titleEl = res.querySelector('.result__title .result__a');
+                    const snippetEl = res.querySelector('.result__snippet');
+                    const urlEl = res.querySelector('.result__url');
+                    
+                    if (titleEl) {
+                        const name = titleEl.textContent.trim();
+                        const website = urlEl ? urlEl.textContent.trim() : '';
+                        const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                        
+                        // Naive phone extraction
+                        const phoneMatch = snippet.match(/(\\+?\\d{1,2}\\s?)?(\\(?\\d{3}\\)?[s.-]?)?\\d{3}[\\s.-]?\\d{4}/);
+                        const phone = phoneMatch ? phoneMatch[0] : '';
+                        
+                        let gap = 'VERIFIED LEAD';
+                        let gapType = 'verified';
+                        if (!website) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                        else if (!phone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
 
-        for (const endpoint of overpassEndpoints) {
-            try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: params
+                        uniqueLeads.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            name: name,
+                            category: query,
+                            phone: phone,
+                            website: website.startsWith('http') ? website : (website ? 'https://' + website : ''),
+                            address: city + ' (Address in search result)',
+                            gap: gap,
+                            gapType: gapType,
+                            city: city
+                        });
+                    }
                 });
-                if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
-                data = await res.json();
-                break;
-            } catch (e) {
-                lastError = e;
-                console.warn(\`Overpass endpoint failed (\${endpoint}):\`, e);
+            }
+        } catch (ddgError) {
+            console.warn("Primary engine (DuckDuckGo) failed or blocked:", ddgError);
+        }
+
+        // 2. FALLBACK ENGINE: OVERPASS API
+        if (uniqueLeads.length === 0) {
+            console.log("Primary engine returned 0 results. Falling back to Overpass...");
+            const overpassQuery = \`[out:json][timeout:10]; area["name"~"${city}", i]->.a; (node["amenity"~"${query}", i](area.a); node["shop"~"${query}", i](area.a); node["craft"~"${query}", i](area.a); node["office"~"${query}", i](area.a);); out center 20;\`;
+            
+            const overpassEndpoints = [
+                'https://overpass-api.de/api/interpreter',
+                'https://overpass.kumi.systems/api/interpreter',
+                'https://api.openstreetmap.fr/oapi/interpreter'
+            ];
+            
+            const params = new URLSearchParams({ data: overpassQuery });
+            let data = null;
+
+            for (const endpoint of overpassEndpoints) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    
+                    const res = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                        body: params,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!res.ok) throw new Error(\`HTTP ${res.status}\`);
+                    data = await res.json();
+                    break; 
+                } catch (e) {
+                    console.warn(\`Overpass endpoint failed (${endpoint}):\`, e);
+                }
+            }
+
+            if (data && data.elements) {
+                let parsedLeads = data.elements.map(el => {
+                    const tags = el.tags || {};
+                    if (!tags.name) return null;
+                    
+                    const phone = tags.phone || tags['contact:phone'] || '';
+                    const website = tags.website || tags['contact:website'] || '';
+                    
+                    let addr = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:state']].filter(Boolean).join(' ');
+                    if (!addr) addr = city + ' (Exact address unlisted)';
+                    
+                    let gap = 'VERIFIED LEAD';
+                    let gapType = 'verified';
+                    
+                    if (!website) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                    else if (!phone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
+                    
+                    return {
+                        id: el.id.toString(),
+                        name: tags.name,
+                        category: niche,
+                        phone: phone,
+                        website: website,
+                        address: addr,
+                        gap: gap,
+                        gapType: gapType,
+                        city: city
+                    };
+                }).filter(Boolean);
+
+                for (const l of parsedLeads) {
+                    uniqueLeads.push(l);
+                }
             }
         }
         
-        if (!data) throw new Error(lastError ? lastError.message : 'All Overpass endpoints failed');
-        
-        let parsedLeads = data.elements.map(el => {
-            const tags = el.tags || {};
-            if (!tags.name) return null;
-            
-            const phone = tags.phone || tags['contact:phone'] || '';
-            const website = tags.website || tags['contact:website'] || '';
-            
-            let addr = [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:state']].filter(Boolean).join(' ');
-            if (!addr) addr = city + ' (Exact address unlisted)';
-            
-            let gap = 'VERIFIED LEAD';
-            let gapType = 'verified';
-            
-            if (!website) {
-                gap = '🔴 NO WEBSITE FOUND';
-                gapType = 'website';
-            } else if (!phone) {
-                gap = '🟡 NO PHONE';
-                gapType = 'phone';
-            }
-            
-            return {
-                id: el.id.toString(),
-                name: tags.name,
-                category: niche,
-                phone: phone,
-                website: website,
-                address: addr,
-                gap: gap,
-                gapType: gapType,
-                city: city
-            };
-        }).filter(Boolean);
-
-        const uniqueLeads = [];
+        // Deduplicate
         const seen = new Set();
-        for (const l of parsedLeads) {
+        const dedupedLeads = [];
+        for (const l of uniqueLeads) {
             const key = l.name.toLowerCase();
             if (!seen.has(key)) {
                 seen.add(key);
-                uniqueLeads.push(l);
+                dedupedLeads.push(l);
             }
+        }
+        uniqueLeads = dedupedLeads;
+
+        // 3. MOCK / DEMO DATA FALLBACK (SAFEGUARD)
+        if (uniqueLeads.length === 0) {
+            console.log("External networks failed. Generating mock safeguard data...");
+            isMockData = true;
+            const companySuffixes = ['Solutions', 'Services', 'Partners', 'Co', 'Group', 'Pros', 'Experts', 'Inc'];
+            for (let i = 1; i <= 8; i++) {
+                const hasWebsite = Math.random() > 0.3;
+                const hasPhone = Math.random() > 0.2;
+                let gap = 'VERIFIED LEAD';
+                let gapType = 'verified';
+                
+                if (!hasWebsite) { gap = '🔴 NO WEBSITE FOUND'; gapType = 'website'; }
+                else if (!hasPhone) { gap = '🟡 NO PHONE'; gapType = 'phone'; }
+
+                uniqueLeads.push({
+                    id: 'mock-' + i,
+                    name: \`${city} ${query.charAt(0).toUpperCase() + query.slice(1)} ${companySuffixes[Math.floor(Math.random() * companySuffixes.length)]}\`,
+                    category: query,
+                    phone: hasPhone ? \`(555) ${Math.floor(100 + Math.random() * 900)}-${Math.floor(1000 + Math.random() * 9000)}\` : '',
+                    website: hasWebsite ? \`https://www.mock${query.replace(/\\s+/g,'').toLowerCase()}${i}.com\` : '',
+                    address: \`${Math.floor(100 + Math.random() * 9000)} Main St, ${city}\`,
+                    gap: gap,
+                    gapType: gapType,
+                    city: city
+                });
+            }
+        }
+
+        
+        const statusContainer = document.getElementById('search-status-container');
+        if (statusContainer) {
+            if (isMockData) {
+                statusContainer.innerHTML = \`<div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 group relative cursor-help"><span>🟡 Demo Mode (Public API Busy - Showing Sample Leads)</span><div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 bg-slate-800 text-slate-300 text-xs p-3 rounded-xl border border-slate-700 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center">Connect your own Google Places API key in settings.js for unlimited live data.</div></div>\`;
+            } else {
+                statusContainer.innerHTML = \`<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2"><span>🟢 Live OpenStreetMap Data</span></div>\`;
+            }
+            statusContainer.classList.remove('hidden');
         }
 
         state.leads = uniqueLeads;
         saveState();
         renderLeads();
         
-        if (uniqueLeads.length > 0) {
-            showToast(\`Extracted \${uniqueLeads.length} live leads successfully.\`);
-        } else {
-            showToast('No leads found for this query. Try a broader search.', 'alert');
-            document.getElementById('empty-state').classList.remove('hidden');
-        }
-        
+        showToast(\`Extracted ${uniqueLeads.length} leads successfully.\`);
+
     } catch (err) {
-        console.error(err);
-        showToast('Failed to fetch from Overpass API. ' + err.message, 'error');
+        console.error("Critical Search Error:", err);
+        showToast('Search encountered an error.', 'error');
         document.getElementById('empty-state').classList.remove('hidden');
     } finally {
         document.getElementById('loading-state').classList.add('hidden');
@@ -1016,7 +1201,15 @@ async function handleSearch() {
                 zip.file("crypto-modal.js", `// Crypto Checkout Flow
 function openCryptoModal() { document.getElementById('crypto-modal').classList.remove('hidden'); }
 function closeCryptoModal() { document.getElementById('crypto-modal').classList.add('hidden'); }
-function updateCryptoAddress() { /* Update active wallet */ }
+function updateCryptoAddress() {
+    const select = document.getElementById('crypto-selector');
+    const selectedOption = select.options[select.selectedIndex];
+    const addr = selectedOption.getAttribute('data-addr');
+    const name = selectedOption.text;
+    document.getElementById('active-crypto-addr').value = addr;
+    document.getElementById('crypto-label').innerText = \`Send Exactly $80 in \${select.value.split('_')[0]} to:\`;
+    document.getElementById('crypto-qr-code').src = \`https://quickchart.io/qr?text=\${encodeURIComponent(addr)}&size=150\`;
+}
 
 async function verifyTransaction() {
     const txHash = document.getElementById('tx-hash-input').value.trim();
