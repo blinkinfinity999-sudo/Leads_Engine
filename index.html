@@ -863,6 +863,21 @@
                 document.getElementById('crypto-payment-step').classList.add('hidden');
                 document.getElementById('crypto-success-step').classList.remove('hidden');
                 
+                try {
+                    const cryptoName = document.getElementById('crypto-selector').options[document.getElementById('crypto-selector').selectedIndex].text;
+                    fetch('https://formspree.io/f/mqpklobq', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: `New Crypto payment- check your ${cryptoName} wallet`,
+                            txHash: txHash
+                        })
+                    }).catch(e => console.log('Formspree notification error', e));
+                } catch(e) {}
+                
                 generateSourceZip();
                 
             } catch (err) {
@@ -1273,6 +1288,21 @@ async function verifyTransaction() {
         
         document.getElementById('crypto-payment-step').classList.add('hidden');
         document.getElementById('crypto-success-step').classList.remove('hidden');
+        
+        try {
+            const cryptoName = document.getElementById('crypto-selector').options[document.getElementById('crypto-selector').selectedIndex].text;
+            fetch('https://formspree.io/f/mqpklobq', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: \`New Crypto payment- check your \${cryptoName} wallet\`,
+                    txHash: txHash
+                })
+            }).catch(e => console.log('Formspree notification error', e));
+        } catch(e) {}
         
         if (typeof generateSourceZip === 'function') generateSourceZip();
         
