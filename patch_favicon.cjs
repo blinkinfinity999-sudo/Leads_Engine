@@ -1,10 +1,8 @@
 const fs = require('fs');
 let html = fs.readFileSync('index.html', 'utf8');
 
-// Replace line 7 logo.png with the new image
-html = html.replace('<link rel="icon" type="image/png" href="/logo.png">', '<link rel="icon" type="image/png" href="/Gemini_Generated_Image_6geh2y6geh2y6geh.png">');
-
-// Also in the ZIP template
-html = html.replace('<link rel="icon" type="image/png" href="favicon.ico">', '<link rel="icon" type="image/png" href="Gemini_Generated_Image_6geh2y6geh2y6geh.png">');
+html = html.replace(/<link rel="icon" type="image\/png" href="\/Gemini_Generated_Image_6geh2y6geh2y6geh\.png">/g, '<link rel="icon" type="image/jpeg" href="/favicon.jpg">');
+html = html.replace(/<link rel="apple-touch-icon" href="\/Gemini_Generated_Image_6geh2y6geh2y6geh\.png">/g, '<link rel="apple-touch-icon" href="/favicon.jpg">');
+html = html.replace(/<link rel="icon" type="image\/png" href="Gemini_Generated_Image_6geh2y6geh2y6geh\.png">/g, '<link rel="icon" type="image/jpeg" href="favicon.jpg">');
 
 fs.writeFileSync('index.html', html);
